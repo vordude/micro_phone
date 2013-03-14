@@ -1,0 +1,483 @@
+<?php
+
+/**
+ * @file
+ * Provides a FieldAPI field type, widget, and formatter for easily
+ * collecting phone numbers for a straightforward UX in admittedly a
+ * US-centric manner.
+ * 
+ */
+
+
+/**
+ * Implements hook_field_info().
+ *
+ * Provides the description of the field.
+ */
+function micro_phone_field_info() {
+  return array(
+    'micro_phone' => array(
+      'label' => t('Micro Telephone'),
+      'description' => t('A field for basic phone number collection and storage.'),
+      'default_widget' => 'micro_phone_widget',
+      'default_formatter' => 'micro_phone_default',
+    ),
+  );
+}
+
+
+/**
+ * Implements hook_field_validate().
+ */
+function micro_phone_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
+  foreach ($items as $delta => $item) {
+    //Don't validate an empty field entry.
+    if (_micro_phone_field_is_empty($item) == FALSE) {
+      switch ($item['format']) {
+        case 'US':
+          //Area Code is a 3 digit number.;
+          if(preg_match('/[0-9]{3}/', trim($item['area_code'])) != 1) {
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+              'error' => 'micro_phone_us_area_code_invalid',
+              'message' => t('Please use a 3 digit phone number area code.'),
+            );
+          }
+
+          //Prefix is a 3 digit number.
+          if(preg_match('/[0-9]{3}/', trim($item['prefix'])) != 1) {
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+              'error' => 'micro_phone_us_prefix_invalid',
+              'message' => t('Please use a 3 digit phone number prefix.'),
+            );
+          }
+          
+          //Last 4 is at least 4 characters.
+          if(preg_match('/[0-9]{4}+/', trim($item['us_number'])) != 1) {
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+              'error' => 'micro_phone_us_last_four_invalid',
+              'message' => t('Please enter a valid number.'),
+            );
+          }
+          break;
+        case 'INT':
+          //The International Number is at least 7 characters
+          if(strlen($item['number']) < 7 ) {
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+              'error' => 'micro_phone_number_invalid',
+              'message' => t('Please enter a phone number'),
+            );
+          }
+          //The Country code has to be a number that's at least 1 digit.
+          if(preg_match('/[0-9]{1,}/', trim($item['country_code'])) != 1) {
+            $errors[$field['field_name']][$langcode][$delta][] = array(
+              'error' => 'micro_phone_country_code_invalid',
+              'message' => t('Please enter a valid country code.'),
+            );
+          }
+          break;
+      }
+      //Require they set a type.
+      if($item['type'] == 'null') {
+        $errors[$field['field_name']][$langcode][$delta][] = array(
+          'error' => 'micro_phone_type_invalid',
+          'message' => t('Please select a type of phone.'),
+        );
+      }
+    }
+    elseif ($instance['required'] && $delta == 0 && $entity_type) {
+        $errors[$field['field_name']][$langcode][$delta][] = array(
+          'error' => 'micro_phone_required',
+          'message' => t('Please enter a phone number.'),
+        );
+    }
+  }
+}
+
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function micro_phone_field_is_empty($item, $field) {
+  $return = _micro_phone_field_is_empty($item);
+  
+  //TODO ALLOW THIS TO BE ALTERED (NEEDS MORE THAN 1 PARAM)
+  //drupal_alter('micro_phone_field_is_empty', $return);
+  
+  return $return;
+}
+
+
+/**
+ * Helper Function to determine if the field should be empty.
+ *
+ * We'll use this in hook_field_is_empty, as well as the field validation.
+ */
+function _micro_phone_field_is_empty($item) {
+  switch ($item['format']) {
+    case 'US':
+      if($item['area_code'] == '' && $item['prefix'] == '' && $item['us_number'] == '') {
+        return TRUE;  
+      }
+      break;
+    case 'INT':
+      if($item['number'] == '' && $item['country_code'] == '') {
+        return TRUE;
+      }
+      break;
+  }
+  return FALSE;
+}
+
+
+
+
+/**
+ * Implements hook_field_settings_form().
+ */
+function micro_phone_field_settings_form($field, $instance, $has_data) {
+
+}
+
+
+
+/**
+ * Implements hook_field_formatter_info().
+ */
+function micro_phone_field_formatter_info() {
+  return array(
+    'micro_phone_default' => array(
+      'label' => t('Default'),
+      'field types' => array('micro_phone'),
+    ),
+    'micro_phone_short' => array(
+      'label' => t('Short'),
+      'field types' => array('micro_phone'),
+    ),
+  );
+}
+
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function micro_phone_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $element = array();
+
+  switch ($display['type']) {
+    case 'micro_phone_default':
+      foreach ($items as $delta => $item) {
+        $element[$delta] = array(
+          '#theme' => 'micro_phone_default_formatter',
+          '#format' => $item['format'],
+          '#country_code' => $item['country_code'],
+          '#area_code' => $item['area_code'],
+          '#num_prefix' => $item['prefix'],
+          '#us_number' => $item['us_number'],
+          '#number' => $item['number'],
+          '#type' => $item['type'],
+        );
+      }
+      break;
+    case 'micro_phone_short':
+      foreach ($items as $delta => $item) {
+        $element[$delta] = array(
+          '#theme' => 'micro_phone_short_formatter',
+          '#format' => $item['format'],
+          '#country_code' => $item['country_code'],
+          '#area_code' => $item['area_code'],
+          '#num_prefix' => $item['prefix'],
+          '#us_number' => $item['us_number'],
+          '#number' => $item['number'],
+          '#type' => $item['type'],
+        );
+      }
+      break;
+  }
+  return $element;
+}
+
+
+
+/**
+ * Implements hook_field_widget_info().
+ */
+function micro_phone_field_widget_info() {
+  return array(
+    'micro_phone_widget' => array(
+      'label' => t('Micro Phone Form'),
+      'field types' => array('micro_phone'),
+    ),
+  );
+}
+
+
+/**
+ * Implements hook_field_widget_form().
+ *
+ * micro_phone_machine_name uses Drupal's built-in 'Machine Readable Name' form
+ * element to display both values for editing.
+ */
+function micro_phone_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $widget = $element;
+  $widget['#delta'] = $delta;
+  switch ($instance['widget']['type']) {
+    case 'micro_phone_widget':
+      
+      $widget += array(
+        '#type' => 'fieldset',
+        // #delta is set so that the validation function will be able
+        // to access external value information which otherwise would be
+        // unavailable.
+        '#delta' => $delta,
+        '#attached' => array(
+          'css' => array(drupal_get_path('module', 'micro_phone') . '/micro_phone.css',),
+          'js' => array(),
+          'js' => array(drupal_get_path('module', 'micro_phone') . '/micro_phone.js',
+                        drupal_get_path('module', 'micro_phone') . '/jquery.autotab-1.1b.js'),
+        ),
+        '#prefix' => '<div class="micro-phone">',
+        '#suffix' => '</div>',
+      );
+
+      $widget['format'] = array(
+        '#type' => 'select',
+        '#options' => array(
+          'US' => t('US/CAN'),
+          'INT' => t("Int'l"),
+        ),
+        '#default_value' => !empty($items[$delta]['format']) ? $items[$delta]['format'] : 'US',
+        '#attributes' => array('class' => array('micro-phone-format')),
+      );
+      
+      if (isset($element['#entity_type']) && $element['#entity_type'] == 'field_collection_item' && $form['#title'] != 'Default value') {
+        // This micro phone field is part of a Field Collection.
+        $country_name = $form['#field_name'] . '[' . $form['#language'] . ']' . '[' . $form['#delta'] . ']';
+        $country_name .= '[' . $field['field_name'] . ']' . '[' . $langcode . ']' . '[' . $delta . ']' . '[format]';
+      }
+      else {
+        $country_name = $field['field_name'] .'[' . $langcode .  ']' .'[' . $delta .  ']' . '[format]';
+      }
+
+      $widget['country_code'] = array(
+        '#type' => 'textfield',
+        '#size' => 4, 
+        '#maxlength' => 4,
+        '#states' => array(
+          'invisible' => array(
+            ':input[name="' . $country_name . '"]' => array('value' => 'US'),
+          )
+        ),
+        '#default_value' => !empty($items[$delta]['country_code']) ? $items[$delta]['country_code'] : '',
+        '#attributes' => array('class' => array('micro-phone-country-code')),
+      );
+      
+      $widget['area_code'] = array(
+        '#type' => 'textfield',  
+        '#size' => 3, 
+        '#maxlength' => 3,
+        '#states' => array(
+          'invisible' => array(
+            ':input[name="' . $country_name . '"]' => array('value' => 'INT'),
+          )
+        ),
+        '#default_value' => !empty($items[$delta]['area_code']) ? $items[$delta]['area_code'] : '',
+        '#attributes' => array('class' => array('auto-tab', 'micro-phone-area-code')),
+        '#field_prefix' => '1+',
+        '#prefix' => '<div class="field-type-micro-phone-field-area-code">',
+        '#suffix' => '</div>',
+      );
+      
+      $widget['prefix'] = array(
+        '#type' => 'textfield',  
+        '#size' => 3, 
+        '#maxlength' => 3,
+        '#states' => array(
+          'invisible' => array(
+            ':input[name="' . $country_name . '"]' => array('value' => 'INT'),
+          )
+        ),
+        '#default_value' => !empty($items[$delta]['prefix']) ? $items[$delta]['prefix'] : '',
+        '#attributes' => array('class' => array('auto-tab', 'micro-phone-prefix')),
+      );
+      
+      $widget['us_number'] = array(
+        '#type' => 'textfield',  
+        '#size' => 8, 
+        '#maxlength' => 19,
+        '#default_value' => !empty($items[$delta]['us_number']) ? $items[$delta]['us_number'] : '',
+        '#states' => array(
+          'invisible' => array(
+            ':input[name="' . $country_name . '"]' => array('value' => 'INT'),
+          ),
+        ),
+        '#attributes' => array('class' => array('auto-tab', 'micro-phone-us-number')),
+        '#title' => t(''),
+      );
+      
+      $widget['number'] = array(
+        '#type' => 'textfield',  
+        '#size' => 15, 
+        '#maxlength' => 25,
+        '#default_value' => !empty($items[$delta]['number']) ? $items[$delta]['number'] : '',
+        '#states' => array(
+          'invisible' => array(
+            ':input[name="' . $country_name . '"]' => array('value' => 'US'),
+          ),
+        ),
+        '#attributes' => array('class' => array('micro-phone-number')),
+        '#title' => t(''),
+      );
+      
+      $widget['type'] = array(
+        '#type' => 'select', 
+        '#options' => array(
+          'null' => t('Type'),
+          'work' => t('Work'),
+          'mobile' => t('Mobile'),
+          'home' => t('Home'),
+          'fax' => t('Fax'),  
+        ),
+        '#default_value' => !empty($items[$delta]['type']) ? $items[$delta]['type'] : 'null',
+        '#attributes' => array('class' => array('micro-phone-type')),
+        '#title' => t(''),
+      );
+      if ($instance['required'] == 1) {
+        $widget['type']['#required'] = 1;
+      }
+      break;
+  }
+  return $element['micro_phone'] = $widget;
+}
+
+
+/**
+ * Implements hook_field_presave().
+ */
+function micro_phone_field_presave($entity_type, $entity, $field, $instance, $langcode, &$items) {
+  if ($field['type'] == 'micro_phone') {
+    foreach ($items as $delta => $item) {
+      if ($item['format'] == 'US') {
+        $items[$delta]['country_code'] = 1;
+        $items[$delta]['number'] = $item['area_code'] . $item['prefix'] . $item['us_number']; 
+      }
+      elseif ($item['format'] == 'INT') {
+        $items[$delta]['us_number'] = '';
+        $items[$delta]['prefix'] = '';
+        $items[$delta]['area_code'] = '';
+      }
+    }
+  }
+}
+
+
+/**
+ * Implements hook_theme().
+ */
+function micro_phone_theme($existing, $type, $theme, $path) {
+    return array(
+    'micro_phone_default_formatter' => array(
+      'variables' => array(
+        'format' => NULL,
+        'country_code' => NULL,
+        'area_code' => NULL,
+        'num_prefix' => NULL,
+        'us_number' => NULL,
+        'number' => NULL,
+        'type' => NULL,
+      ),
+    ),
+    'micro_phone_short_formatter' => array(
+      'variables' => array(
+        'format' => NULL,
+        'country_code' => NULL,
+        'area_code' => NULL,
+        'num_prefix' => NULL,
+        'us_number' => NULL,
+        'number' => NULL,
+        'type' => NULL,
+      ),
+    ),
+  );
+}
+
+
+function theme_micro_phone_default_formatter($vars) { 
+  $number = '<span class="type">' . strip_tags($vars['type']) . ': </span>';
+  $number .= '<span class="number ' . strip_tags($vars['format']) . '">';
+  
+  if ($vars['format'] == 'US') {
+    $number .= '(' . strip_tags($vars['area_code']) . ') ' . strip_tags($vars['num_prefix']) . '-' . strip_tags($vars['us_number']);
+  }
+  else if ($vars['format'] == 'INT') {
+    $number .= '+' . strip_tags($vars['country_code']) . ' ' . strip_tags($vars['number']);
+  }
+  
+  $number .= '</span>';
+  
+  return $number;
+}
+
+
+
+function theme_micro_phone_short_formatter($vars) {
+  $number = '';
+  if ($vars['format'] == 'US') {
+    $number .= '(' . strip_tags($vars['area_code']) . ') ' . strip_tags($vars['num_prefix']) . '-' . strip_tags($vars['us_number'] . ' ');
+  }
+  else if ($vars['format'] == 'INT') {
+    $number .= '+' . strip_tags($vars['country_code']) . ' ' . strip_tags($vars['number'] . ' ');
+  }
+
+  switch($vars['type']) {
+    case 'work':
+      $number .= '(w)';
+      break;
+    case 'mobile':
+      $number .= '(m)';
+      break;
+    case 'home':
+      $number .= '(h)';
+      break;
+    case 'fax':
+      $number .= '(f)';
+      break;
+
+  }
+
+  return $number;
+}
+
+/**
+ * Implements hook_field_widget_error().
+ */
+function micro_phone_field_widget_error($element, $error, $form, &$form_state) {
+  switch($error['error']) {
+    case 'micro_phone_us_area_code_invalid':
+      form_error($element['area_code'], $error['message']);
+      break;
+    
+    case 'micro_phone_us_prefix_invalid':
+      form_error($element['prefix'], $error['message']);
+      break;
+    
+    case 'micro_phone_us_last_four_invalid':
+      form_error($element['us_number'], $error['message']);
+      break;
+    
+    case 'micro_phone_number_invalid':
+      form_error($element['number'], $error['message']);
+      break;
+    
+    case 'micro_phone_country_code_invalid':
+      form_error($element['country_code'], $error['message']);
+      break;
+    
+    case 'micro_phone_type_invalid':
+      form_error($element['type'], $error['message']);
+      break;
+    
+    case 'micro_phone_required':
+      form_error($element, $error['message']);
+      break;
+  }
+}

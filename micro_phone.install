@@ -1,0 +1,29 @@
+<?php
+
+/**
+ * @file
+ * Install/Update/Uninstall functions for safeword module
+ */
+
+/**
+ * Implements hook_field_schema().
+ */
+function micro_phone_field_schema($field) {
+  $columns = array(
+    'format' => array('type' => 'varchar', 'length' => 255, 'not null' => FALSE),
+    'country_code' => array('type' => 'varchar', 'length' => 4, 'not null' => FALSE),
+    'area_code' => array('type' => 'varchar', 'length' => 3, 'not null' => FALSE),
+    'prefix' => array('type' => 'varchar', 'length' => 3, 'not null' => FALSE),
+    'us_number' => array('type' => 'varchar', 'length' => 19, 'not null' => FALSE),
+    'number' => array('type' => 'varchar', 'length' => 25, 'not null' => FALSE),
+    'type' => array('type' => 'varchar', 'length' => 255, 'not null' => FALSE),
+  );
+  $indexes = array(
+    'number' => array('number'),
+    'country_code' => array('country_code'),
+  );
+  return array(
+    'columns' => $columns,
+    'indexes' => $indexes,
+  );
+}
